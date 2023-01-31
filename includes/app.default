@@ -1,0 +1,1419 @@
+<?php 
+include("includes/connection.php");
+include("includes/function.php");   
+include("language/app_language.php");
+include("smtp_email.php");
+
+error_reporting(0);
+
+$file_path = getBaseUrl();
+
+$mysqli->set_charset('utf8mb4');
+
+date_default_timezone_set("Asia/Kolkata");
+
+// Purchase code verification
+if($settings_details['envato_buyer_name']=='' OR $settings_details['envato_purchase_code']=='' OR $settings_details['envato_purchased_status']==0) {  
+    
+    $set['ALL_IN_ONE_VIDEO'][] =array('status' => -1,'msg' => 'Purchase code verification failed!');
+    
+    header( 'Content-Type: application/json; charset=utf-8' );
+    echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    die();
+}
+
+// Generate random password start
+function generateRandomPassword($length = 10) {
+    $characters = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    $charactersLength = strlen($characters);
+    $randomString = '';
+    for ($i = 0; $i < $length; $i++) {
+        $randomString .= $characters[rand(0, $charactersLength - 1)];
+    }
+    return $randomString;
+}
+// Generate random password end
+
+$get_method = checkSignSalt($_POST['data']);    
+
+// Get home video start 
+if($get_method['method_name']=="get_home_video")
+{
+    $jsonObj_2= array();
+    
+    $query_all="SELECT * FROM tbl_video
+    LEFT JOIN tbl_category ON tbl_video.`cat_id`= tbl_category.`cid` 
+    WHERE tbl_video.`featured`='1' AND tbl_category.`status`='1' ORDER BY `id` DESC LIMIT 10";
+    
+    $sql_all = mysqli_query($mysqli,$query_all)or die(mysqli_error($mysqli));
+    
+    while($data_all = mysqli_fetch_assoc($sql_all))
+    {
+        
+        $video_url=$data_all['video_url'];
+        
+        if($data_all['video_type']=='local'){
+            $video_url=$file_path.'uploads/'.basename($data_all['video_url']);
+        }
+        
+        $row2['id'] = $data_all['id'];
+        $row2['cat_id'] = $data_all['cat_id'];
+        $row2['video_type'] = $data_all['video_type'];
+        $row2['video_title'] = $data_all['video_title'];
+        $row2['video_url'] = $video_url;
+        $row2['video_id'] = $data_all['video_id'];
+        
+        if($data_all['video_type']=='server_url' OR $data_all['video_type']=='embeded_code' OR $data_all['video_type']=='local')
+        {
+            $row2['video_thumbnail_b'] = $file_path.'images/'.$data_all['video_thumbnail'];
+            $row2['video_thumbnail_s'] = $file_path.'images/thumbs/'.$data_all['video_thumbnail'];
+        }
+        else
+        {
+            $row2['video_thumbnail_b'] = $data_all['video_thumbnail'];
+            $row2['video_thumbnail_s'] = $data_all['video_thumbnail'];
+        }
+        
+        $row2['video_duration'] = $data_all['video_duration'];
+        $row2['video_description'] = $data_all['video_description'];
+        $row2['rate_avg'] = $data_all['rate_avg'];
+        $row2['totel_viewer'] = $data_all['totel_viewer'];
+        
+        $row2['cid'] = $data_all['cid'];
+        $row2['category_name'] = $data_all['category_name'];
+        $row2['category_image'] = $file_path.'images/'.$data_all['category_image'];
+        $row2['category_image_thumb'] = $file_path.'images/thumbs/'.$data_all['category_image'];
+        
+        array_push($jsonObj_2,$row2);
+        
+    }
+    
+    $row['featured_video']=$jsonObj_2;
+    $jsonObj= array();  
+    
+    $query="SELECT * FROM tbl_video
+    LEFT JOIN tbl_category ON tbl_video.`cat_id`= tbl_category.`cid` 
+    WHERE tbl_video.`status`='1' AND tbl_category.`status`='1' ORDER BY tbl_video.`id` DESC LIMIT 3";
+    
+    $sql = mysqli_query($mysqli,$query)or die(mysqli_error($mysqli));
+    
+    while($data = mysqli_fetch_assoc($sql))
+    {
+        
+        $video_url=$data['video_url'];
+        
+        if($data['video_type']=='local'){
+            $video_url=$file_path.'uploads/'.basename($data['video_url']);
+        }
+        
+        $row1['id'] = $data['id'];
+        $row1['cat_id'] = $data['cat_id'];
+        $row1['video_type'] = $data['video_type'];
+        $row1['video_title'] = $data['video_title'];
+        $row1['video_url'] = $video_url;
+        $row1['video_id'] = $data['video_id'];
+        
+        if($data['video_type']=='server_url' OR $data['video_type']=='embeded_code' OR $data['video_type']=='local')
+        {
+            $row1['video_thumbnail_b'] = $file_path.'images/'.$data['video_thumbnail'];
+            $row1['video_thumbnail_s'] = $file_path.'images/thumbs/'.$data['video_thumbnail'];
+        }
+        else
+        {
+            $row1['video_thumbnail_b'] = $data['video_thumbnail'];
+            $row1['video_thumbnail_s'] = $data['video_thumbnail'];
+        }
+        
+        $row1['video_duration'] = $data['video_duration'];
+        $row1['video_description'] = $data['video_description'];
+        $row1['video_description'] = $data['video_description'];
+        $row1['rate_avg'] = $data['rate_avg'];
+        $row1['totel_viewer'] = $data['totel_viewer'];
+        
+        $row1['cid'] = $data['cid'];
+        $row1['category_name'] = $data['category_name'];
+        $row1['category_image'] = $file_path.'images/'.$data['category_image'];
+        $row1['category_image_thumb'] = $file_path.'images/thumbs/'.$data['category_image'];
+        
+        array_push($jsonObj,$row1);
+        
+    }
+    
+    $row['latest_video']=$jsonObj;
+    
+    $jsonObj_3= array();
+    
+    $query_3="SELECT * FROM tbl_video
+    LEFT JOIN tbl_category ON tbl_video.`cat_id`=tbl_category.`cid`
+    WHERE tbl_video.`status`='1' AND tbl_category.`status`='1' ORDER BY rand() DESC LIMIT 3";
+    
+    $sql_3 = mysqli_query($mysqli,$query_3)or die(mysqli_error($mysqli));
+    
+    while($data_3 = mysqli_fetch_assoc($sql_3))
+    {
+        $video_url=$data_3['video_url'];
+        
+        if($data_3['video_type']=='local'){
+            $video_url=$file_path.'uploads/'.basename($data_3['video_url']);
+        }
+        
+        $row_3['id'] = $data_3['id'];
+        $row_3['cat_id'] = $data_3['cat_id'];
+        $row_3['video_type'] = $data_3['video_type'];
+        $row_3['video_title'] = $data_3['video_title'];
+        $row_3['video_url'] = $video_url;
+        $row_3['video_id'] = $data_3['video_id'];
+        
+        if($data_3['video_type']=='server_url' OR $data_3['video_type']=='embeded_code' OR $data_3['video_type']=='local')
+        {
+            $row_3['video_thumbnail_b'] = $file_path.'images/'.$data_3['video_thumbnail'];
+            $row_3['video_thumbnail_s'] = $file_path.'images/thumbs/'.$data_3['video_thumbnail'];
+        }
+        else
+        {
+            $row_3['video_thumbnail_b'] = $data_3['video_thumbnail'];
+            $row_3['video_thumbnail_s'] = $data_3['video_thumbnail'];
+        }
+        
+        $row_3['video_duration'] = $data_3['video_duration'];
+        $row_3['video_description'] = $data_3['video_description'];
+        $row_3['rate_avg'] = $data_3['rate_avg'];
+        $row_3['totel_viewer'] = $data_3['totel_viewer']; 
+        
+        $row_3['cid'] = $data_3['cid'];
+        $row_3['category_name'] = $data_3['category_name'];
+        $row_3['category_image'] = $file_path.'images/'.$data_3['category_image'];
+        $row_3['category_image_thumb'] = $file_path.'images/thumbs/'.$data_3['category_image'];
+        
+        array_push($jsonObj_3,$row_3);
+        
+    }
+    
+    $row['all_video']=$jsonObj_3; 
+    
+    $jsonObj_4= array();
+    
+    $query_4="SELECT* FROM tbl_category WHERE status='1' ORDER BY tbl_category.`cid` Limit 3";
+    
+    $sql_4 = mysqli_query($mysqli,$query_4)or die(mysqli_error($mysqli));
+    
+    while($data_4 = mysqli_fetch_assoc($sql_4))
+    {
+        $row_4['cid'] = $data_4['cid'];
+        $row_4['category_name'] = $data_4['category_name'];
+        $row_4['category_image'] = $file_path.'images/'.$data_4['category_image'];
+        $row_4['category_image_thumb'] = $file_path.'images/thumbs/'.$data_4['category_image'];
+        
+        array_push($jsonObj_4,$row_4);
+    }
+    
+    $row['category']=$jsonObj_4;
+    
+    $set['ALL_IN_ONE_VIDEO'] = $row;    
+    
+    header( 'Content-Type: application/json; charset=utf-8' );
+    echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    die();
+}
+else if($get_method['method_name']=="get_all_videos")
+{
+    $video_order_by=API_ALL_VIDEO_ORDER_BY;
+    
+    $jsonObj= array();  
+    
+    $query="SELECT * FROM tbl_video
+    LEFT JOIN tbl_category ON tbl_video.`cat_id`=tbl_category.`cid` 
+    WHERE tbl_video.`status`='1' AND tbl_category.`status`='1' ORDER BY tbl_video.`id` $video_order_by";
+    
+    $sql = mysqli_query($mysqli,$query)or die(mysqli_error($mysqli));
+    
+    while($data = mysqli_fetch_assoc($sql))
+    {
+        $video_url=$data['video_url'];
+        
+        if($data['video_type']=='local'){
+            $video_url=$file_path.'uploads/'.basename($data['video_url']);
+        }
+        
+        $row['id'] = $data['id'];
+        $row['cat_id'] = $data['cat_id'];
+        $row['video_type'] = $data['video_type'];
+        $row['video_title'] = $data['video_title'];
+        $row['video_url'] = $video_url;
+        $row['video_id'] = $data['video_id'];
+        
+        if($data['video_type']=='server_url' OR $data['video_type']=='embeded_code' OR $data['video_type']=='local')
+        {
+            $row['video_thumbnail_b'] = $file_path.'images/'.$data['video_thumbnail'];
+            $row['video_thumbnail_s'] = $file_path.'images/thumbs/'.$data['video_thumbnail'];
+        }
+        else
+        {
+            $row['video_thumbnail_b'] = $data['video_thumbnail'];
+            $row['video_thumbnail_s'] = $data['video_thumbnail'];
+        }
+        
+        $row['video_duration'] = $data['video_duration'];
+        $row['video_description'] = $data['video_description'];
+        $row['rate_avg'] = $data['rate_avg'];
+        $row['totel_viewer'] = $data['totel_viewer'];  
+        
+        $row['cid'] = $data['cid'];
+        $row['category_name'] = $data['category_name'];
+        $row['category_image'] = $file_path.'images/'.$data['category_image'];
+        $row['category_image_thumb'] = $file_path.'images/thumbs/'.$data['category_image'];
+        
+        
+        array_push($jsonObj,$row);
+        
+    }
+    
+    $set['ALL_IN_ONE_VIDEO'] = $jsonObj;    
+    
+    header( 'Content-Type: application/json; charset=utf-8' );
+    echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    die();
+}
+else if($get_method['method_name']=="get_latest_video")
+{
+    $limit=API_LATEST_LIMIT;
+    
+    $jsonObj= array();  
+    
+    $query="SELECT * FROM tbl_video
+    LEFT JOIN tbl_category ON tbl_video.`cat_id`= tbl_category.`cid` 
+    WHERE tbl_video.`status`='1' AND tbl_category.`status`='1' ORDER BY tbl_video.`id` DESC LIMIT $limit";
+    
+    $sql = mysqli_query($mysqli,$query)or die(mysqli_error($mysqli));
+    
+    while($data = mysqli_fetch_assoc($sql))
+    {
+        $video_url=$data['video_url'];
+        
+        if($data['video_type']=='local'){
+            $video_url=$file_path.'uploads/'.basename($data['video_url']);
+        }
+        
+        $row['id'] = $data['id'];
+        $row['cat_id'] = $data['cat_id'];
+        $row['video_type'] = $data['video_type'];
+        $row['video_title'] = $data['video_title'];
+        $row['video_url'] = $video_url;
+        $row['video_id'] = $data['video_id'];
+        
+        if($data['video_type']=='server_url' OR $data['video_type']=='embeded_code' OR $data['video_type']=='local')
+        {
+            $row['video_thumbnail_b'] = $file_path.'images/'.$data['video_thumbnail'];
+            $row['video_thumbnail_s'] = $file_path.'images/thumbs/'.$data['video_thumbnail'];
+        }
+        else
+        {
+            $row['video_thumbnail_b'] = $data['video_thumbnail'];
+            $row['video_thumbnail_s'] = $data['video_thumbnail'];
+        }
+        
+        $row['video_duration'] = $data['video_duration'];
+        $row['video_description'] = $data['video_description'];
+        $row['rate_avg'] = $data['rate_avg'];
+        $row['totel_viewer'] = $data['totel_viewer'];   
+        
+        $row['cid'] = $data['cid'];
+        $row['category_name'] = $data['category_name'];
+        $row['category_image'] = $file_path.'images/'.$data['category_image'];
+        $row['category_image_thumb'] = $file_path.'images/thumbs/'.$data['category_image'];
+        
+        array_push($jsonObj,$row);
+        
+    }
+    
+    $set['ALL_IN_ONE_VIDEO'] = $jsonObj;    
+    
+    header( 'Content-Type: application/json; charset=utf-8' );
+    echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    die();
+    
+}   
+else if($get_method['method_name']=="get_category")
+{
+    
+    $jsonObj= array();
+    
+    $cat_order=API_CAT_ORDER_BY;
+    
+    $query="SELECT * FROM tbl_category  WHERE status='1' ORDER BY tbl_category.".$cat_order."";
+    $sql = mysqli_query($mysqli,$query)or die(mysqli_error($mysqli));
+    
+    while($data = mysqli_fetch_assoc($sql))
+    {
+        
+        $row['cid'] = $data['cid'];
+        $row['category_name'] = $data['category_name'];
+        $row['category_image'] = $file_path.'images/'.$data['category_image'];
+        $row['category_image_thumb'] = $file_path.'images/thumbs/'.$data['category_image'];
+        
+        array_push($jsonObj,$row);
+    }
+    
+    $set['ALL_IN_ONE_VIDEO'] = $jsonObj;    
+    
+    header( 'Content-Type: application/json; charset=utf-8' );
+    echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    die();
+}
+else if($get_method['method_name']=="get_vidoe_by_cat_id")
+{
+    $post_order_by=API_CAT_POST_ORDER_BY;
+    
+    $cat_id=$get_method['cat_id'];  
+    
+    $jsonObj= array();  
+    
+    $query="SELECT * FROM tbl_video
+    LEFT JOIN tbl_category ON tbl_video.`cat_id`=tbl_category.`cid` 
+    WHERE tbl_video.`cat_id`='$cat_id' AND tbl_video.`status`='1' ORDER BY tbl_video.`id` ".$post_order_by."";
+    
+    $sql = mysqli_query($mysqli,$query)or die(mysqli_error($mysqli));
+    
+    while($data = mysqli_fetch_assoc($sql))
+    {
+        $video_url=$data['video_url'];
+        
+        if($data['video_type']=='local'){
+            $video_url=$file_path.'uploads/'.basename($data['video_url']);
+        }
+        
+        $row['id'] = $data['id'];
+        $row['cat_id'] = $data['cat_id'];
+        $row['video_type'] = $data['video_type'];
+        $row['video_title'] = $data['video_title'];
+        $row['video_url'] = $video_url;
+        $row['video_id'] = $data['video_id'];
+        
+        if($data['video_type']=='server_url' OR $data['video_type']=='embeded_code' OR $data['video_type']=='local')
+        {
+            $row['video_thumbnail_b'] = $file_path.'images/'.$data['video_thumbnail'];
+            $row['video_thumbnail_s'] = $file_path.'images/thumbs/'.$data['video_thumbnail'];
+        }
+        else
+        {
+            $row['video_thumbnail_b'] = $data['video_thumbnail'];
+            $row['video_thumbnail_s'] = $data['video_thumbnail'];
+        }
+        
+        $row['video_duration'] = $data['video_duration'];
+        $row['video_description'] = $data['video_description'];
+        $row['rate_avg'] = $data['rate_avg'];
+        $row['totel_viewer'] = $data['totel_viewer'];  
+        
+        $row['cid'] = $data['cid'];
+        $row['category_name'] = $data['category_name'];
+        $row['category_image'] = $file_path.'images/'.$data['category_image'];
+        $row['category_image_thumb'] = $file_path.'images/thumbs/'.$data['category_image'];
+        
+        array_push($jsonObj,$row);
+    }
+    
+    $set['ALL_IN_ONE_VIDEO'] = $jsonObj;
+    
+    header( 'Content-Type: application/json; charset=utf-8' );
+    echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    die();
+}
+else if($get_method['method_name']=="get_single_video")
+{
+    $jsonObj= array();  
+    
+    $query="SELECT * FROM tbl_video
+    LEFT JOIN tbl_category ON tbl_video.`cat_id`=tbl_category.`cid`
+    WHERE tbl_video.`id`='".$get_method['video_id']."'";
+    
+    $sql = mysqli_query($mysqli,$query)or die(mysqli_error($mysqli));
+    
+    while($data = mysqli_fetch_assoc($sql))
+    {
+        $video_url=$data['video_url'];
+        
+        if($data['video_type']=='local'){
+            $video_url=$file_path.'uploads/'.basename($data['video_url']);
+        }
+        
+        $row['cat_id'] = $data['cat_id'];
+        $row['category_name'] = $data['category_name'];
+        
+        $row['id'] = $data['id'];
+        $row['video_type'] = $data['video_type'];
+        $row['video_title'] = $data['video_title'];
+        $row['video_url'] = $video_url;
+        $row['video_id'] = $data['video_id'];
+        
+        if($data['video_type']=='server_url' OR $data['video_type']=='embeded_code' OR $data['video_type']=='local')
+        {
+            $row['video_thumbnail_b'] = $file_path.'images/'.$data['video_thumbnail'];
+            $row['video_thumbnail_s'] = $file_path.'images/thumbs/'.$data['video_thumbnail'];
+        }
+        else
+        {
+            $row['video_thumbnail_b'] = $data['video_thumbnail'];
+            $row['video_thumbnail_s'] = $data['video_thumbnail'];
+        }
+        
+        $row['video_duration'] = $data['video_duration'];
+        $row['video_description'] = $data['video_description'];
+        $row['rate_avg'] = $data['rate_avg'];
+        $row['totel_viewer'] = $data['totel_viewer'];  
+        
+        $query_2="SELECT * FROM tbl_video
+        LEFT JOIN tbl_category ON tbl_video.`cat_id`=tbl_category.`cid`
+        WHERE tbl_video.`cat_id`='".$data['cat_id']."' AND tbl_video.`status`='1' AND tbl_category.`status`='1' AND tbl_video.id <> '".$data['id']."'";
+        
+        $sql2 = mysqli_query($mysqli,$query_2)or die(mysqli_error($mysqli));
+        
+        if($sql2->num_rows > 0)
+        {
+            while($data_2 = mysqli_fetch_assoc($sql2))
+            {
+                
+                $video_url_2=$data_2['video_url'];
+                
+                if($data_2['video_type']=='local'){
+                    $video_url_2=$file_path.'uploads/'.basename($data_2['video_url']);
+                }
+                
+                $row2['cat_id'] = $data_2['cat_id'];
+                $row2['category_name'] = $data_2['category_name'];
+                
+                $row2['id'] = $data_2['id'];
+                $row2['video_type'] = $data_2['video_type'];
+                $row2['video_title'] = $data_2['video_title'];
+                $row2['video_url'] = $video_url_2;
+                $row2['video_id'] = $data_2['video_id'];
+                
+                if($data_2['video_type']=='server_url' OR $data_2['video_type']=='embeded_code' OR $data_2['video_type']=='local')
+                {
+                    $row2['video_thumbnail_b'] = $file_path.'images/'.$data_2['video_thumbnail'];
+                    $row2['video_thumbnail_s'] = $file_path.'images/thumbs/'.$data_2['video_thumbnail'];
+                }
+                else
+                {
+                    $row2['video_thumbnail_b'] = $data_2['video_thumbnail'];
+                    $row2['video_thumbnail_s'] = $data_2['video_thumbnail'];
+                }
+                
+                $row2['video_duration'] = $data_2['video_duration'];
+                $row2['video_description'] = $data_2['video_description'];
+                $row2['rate_avg'] = $data_2['rate_avg'];
+                $row2['totel_viewer'] = $data_2['totel_viewer'];  
+                
+                $related_data[]=$row2;
+                
+            }
+            
+            $row['related']=$related_data;
+            
+        }
+        else
+        {   
+            $row['related']=array();
+        }
+        
+        $qry3="SELECT * FROM tbl_comments WHERE post_id='".$get_method['video_id']."'";
+        $result3=mysqli_query($mysqli,$qry3); 
+        
+        if($result3->num_rows > 0)
+        {
+            while ($row_comments=mysqli_fetch_array($result3))
+            {   
+                $row3['comment_id'] = $row_comments['id'];
+                $row3['user_id'] = $row_comments['user_id'];
+                $row3['video_id'] = $row_comments['post_id'];
+                $row3['user_name'] = $row_comments['user_name'];
+                $row3['comment_text'] = $row_comments['comment_text'];
+                $row['user_comments'][]= $row3;
+            }
+        }
+        else
+        {
+            $row['user_comments'][]= '';
+        }
+        
+        array_push($jsonObj,$row);
+        
+    }
+    $view_qry=mysqli_query($mysqli,"UPDATE tbl_video SET totel_viewer= totel_viewer + 1 WHERE id = '".$get_method['video_id']."'");
+    
+    $set['ALL_IN_ONE_VIDEO'] = $jsonObj;    
+    
+    header( 'Content-Type: application/json; charset=utf-8' );
+    echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    die();
+}
+else if($get_method['method_name']=="get_search_videos")
+{
+    $jsonObj= array();
+    
+    $search=cleanInput($get_method['search_text']); 
+    
+    $query="SELECT * FROM tbl_video
+    LEFT JOIN tbl_category ON tbl_video.`cat_id`=tbl_category.`cid` 
+    WHERE tbl_video.`status`='1' AND tbl_category.`status`='1' AND tbl_video.`video_title` LIKE '%$search%'  ORDER BY tbl_video.`video_title`";
+    
+    $sql = mysqli_query($mysqli,$query)or die(mysqli_error($mysqli));
+    
+    while($data = mysqli_fetch_assoc($sql))
+    {
+        
+        $video_url=$data['video_url'];
+        
+        if($data['video_type']=='local'){
+            $video_url=$file_path.'uploads/'.basename($data['video_url']);
+        }
+        
+        $row['id'] = $data['id'];
+        $row['cat_id'] = $data['cat_id'];
+        $row['video_type'] = $data['video_type'];
+        $row['video_title'] = $data['video_title'];
+        $row['video_url'] = $video_url;
+        $row['video_id'] = $data['video_id'];
+        
+        if($data['video_type']=='server_url' OR $data['video_type']=='embeded_code' OR $data['video_type']=='local')
+        {
+            $row['video_thumbnail_b'] = $file_path.'images/'.$data['video_thumbnail'];
+            $row['video_thumbnail_s'] = $file_path.'images/thumbs/'.$data['video_thumbnail'];
+        }
+        else
+        {
+            $row['video_thumbnail_b'] = $data['video_thumbnail'];
+            $row['video_thumbnail_s'] = $data['video_thumbnail'];
+        }
+        
+        $row['video_duration'] = $data['video_duration'];
+        $row['video_description'] = $data['video_description'];
+        $row['rate_avg'] = $data['rate_avg'];
+        $row['totel_viewer'] = $data['totel_viewer'];
+        
+        $row['cid'] = $data['cid'];
+        $row['category_name'] = $data['category_name'];
+        $row['category_image'] = $file_path.'images/'.$data['category_image'];
+        $row['category_image_thumb'] = $file_path.'images/thumbs/'.$data['category_image'];
+        
+        array_push($jsonObj,$row);
+        
+    }
+    
+    $set['ALL_IN_ONE_VIDEO'] = $jsonObj;    
+    
+    header( 'Content-Type: application/json; charset=utf-8' );
+    echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    die();
+}
+else if($get_method['method_name']=="user_report")
+{
+    $jsonObj= array();  
+    $user_id=$get_method['user_id'];
+    $post_id=$get_method['post_id'];
+    $report=cleanInput($get_method['report']);
+    
+    $info['success']="1";
+    
+    if(isset($get_method['comment_id']) AND $get_method['comment_id']!="")
+    {
+          $data = array(
+            'post_id' => $post_id,
+            'comment_id'=> $get_method['comment_id'], 
+            'user_id'  => $user_id,
+            'report'  =>  $report,
+            'report_on'  =>  strtotime(date('d-m-Y h:i:s A'))
+        );   
+    }
+    else
+    {
+          $data = array(
+            'post_id' => $post_id,
+            'user_id'  => $user_id,
+            'report'  =>  $report,
+            'report_on'  =>  strtotime(date('d-m-Y h:i:s A'))
+        );   
+    }
+ 
+    $qry = Insert('tbl_reports',$data); 
+    
+    $set['ALL_IN_ONE_VIDEO'][]=array('msg' => $app_lang['report_success'], 'success'=>'1');
+    
+    header( 'Content-Type: application/json; charset=utf-8' );
+    echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE));
+    die();
+    
+}
+else if($get_method['method_name']=="user_register")
+{
+    
+    $user_type=trim($get_method['type']); //Google, Normal, Facebook
+    
+    $email=addslashes(trim($get_method['email']));
+    $auth_id=addslashes(trim($get_method['auth_id']));
+    
+    $to = $get_method['email'];
+    $recipient_name=$get_method['name'];
+    
+    $subject = '[IMPORTANT] '.APP_NAME.  'Registration completed';
+    
+    if($user_type=='Google' || $user_type=='google'){
+        
+        $sql="SELECT * FROM tbl_users WHERE (`email` = '$email' OR `auth_id`='$auth_id') AND `user_type`='Google'";
+        $res=mysqli_query($mysqli,$sql);
+        $num_rows = mysqli_num_rows($res);
+        $row = mysqli_fetch_assoc($res);
+        
+        if($num_rows == 0)
+        {
+            $data = array(
+                'user_type'=>'Google',
+                'auth_id'  =>  $auth_id,
+                'name'  => addslashes(trim($get_method['name'])),                   
+                'email'  =>  addslashes(trim($get_method['email'])),
+                'password'  =>  trim($get_method['password']),
+                'phone'  =>  addslashes(trim($get_method['phone'])),
+                'register_on'  =>  strtotime(date('d-m-Y h:i:s A')), 
+                'status'  =>  '1'
+            );      
+            
+            $qry = Insert('tbl_users',$data);
+            
+            $user_id=mysqli_insert_id($mysqli);
+            
+            $sql="SELECT * FROM tbl_active_log WHERE `user_id`='$user_id'";
+            $res=mysqli_query($mysqli, $sql);
+            
+            if(mysqli_num_rows($res) == 0){
+                
+                $data_log = array(
+                    'user_id'  =>  $user_id,
+                    'date_time'  =>  strtotime(date('d-m-Y h:i:s A'))
+                );
+                
+                $qry = Insert('tbl_active_log',$data_log);
+                
+            }
+            else{
+                $data_log = array(
+                    'date_time'  =>  strtotime(date('d-m-Y h:i:s A'))
+                );
+                
+                $update=Update('tbl_active_log', $data_log, "WHERE user_id = '$user_id'");  
+            }
+            
+            mysqli_free_result($res);
+            
+            $set['ALL_IN_ONE_VIDEO'][]=array('user_id' => strval($user_id),'name'=>$get_method['name'],'email'=>$get_method['email'], 'success'=>'1', 'msg' =>'', 'auth_id' => $auth_id);
+        }
+        else{
+            $data = array(
+                'auth_id'  =>  $auth_id,
+            ); 
+            
+            $update=Update('tbl_users', $data, "WHERE id = '".$row['id']."'");
+            
+            if($row['status']==0)
+            {
+                $set['ALL_IN_ONE_VIDEO'][]=array('msg' =>$app_lang['account_deactive'],'success'=>'0');
+            }   
+            else
+            {
+                $user_id=$row['id'];
+                
+                $sql="SELECT * FROM tbl_active_log WHERE `user_id`='$user_id'";
+                $res=mysqli_query($mysqli, $sql);
+                
+                if(mysqli_num_rows($res) == 0){
+                    $data_log = array(
+                        'user_id'  =>  $user_id,
+                        'date_time'  =>  strtotime(date('d-m-Y h:i:s A'))
+                    );
+                    
+                    $qry = Insert('tbl_active_log',$data_log);
+                    
+                }
+                else{
+                    $data_log = array(
+                        'date_time'  =>  strtotime(date('d-m-Y h:i:s A'))
+                    );
+                    
+                    $update=Update('tbl_active_log', $data_log, "WHERE user_id = '$user_id'");  
+                }
+                
+                mysqli_free_result($res);
+                 
+                
+                $set['ALL_IN_ONE_VIDEO'][]=array('user_id' => $row['id'], 'name'=>$row['name'], 'email'=>$row['email'], 'success'=>'1', 'msg' =>'', 'auth_id' => $auth_id);
+            }
+        }
+        
+    }
+    
+    
+    else if($user_type=='Facebook' || $user_type=='facebook'){
+        
+        $sql="SELECT * FROM tbl_users WHERE (`email` = '$email' OR `auth_id`='$auth_id') AND `user_type`='Facebook'";
+        $res=mysqli_query($mysqli,$sql);
+        $num_rows = mysqli_num_rows($res);
+        $row = mysqli_fetch_assoc($res);
+        
+        if($num_rows == 0)
+        {
+            
+            $data = array(
+                'user_type'=>'Facebook',
+                'name'  => addslashes(trim($get_method['name'])),                   
+                'email'  =>  addslashes(trim($get_method['email'])),
+                'password'  =>  trim($get_method['password']),
+                'phone'  =>  addslashes(trim($get_method['phone'])),
+                'register_on'  =>  strtotime(date('d-m-Y h:i:s A')),
+                'auth_id'  =>  $auth_id, 
+                'status'  =>  '1'
+            );      
+            
+            $qry = Insert('tbl_users',$data);
+            
+            $user_id=mysqli_insert_id($mysqli);
+            
+            $sql="SELECT * FROM tbl_active_log WHERE `user_id`='$user_id'";
+            $res=mysqli_query($mysqli, $sql);
+            
+            if(mysqli_num_rows($res) == 0){
+                $data_log = array(
+                    'user_id'  =>  $user_id,
+                    'date_time'  =>  strtotime(date('d-m-Y h:i:s A'))
+                );
+                
+                $qry = Insert('tbl_active_log',$data_log);
+                
+            }
+            else{
+                $data_log = array(
+                    'date_time'  =>  strtotime(date('d-m-Y h:i:s A'))
+                );
+                
+                $update=Update('tbl_active_log', $data_log, "WHERE user_id = '$user_id'");  
+            }
+            
+            mysqli_free_result($res);
+            
+            $set['ALL_IN_ONE_VIDEO'][]=array('user_id' => strval($user_id),'name'=>$get_method['name'],'email'=>$get_method['email'], 'success'=>'1', 'msg' =>'', 'auth_id' => $auth_id);
+        }
+        else{
+            $data = array(
+                'auth_id'  =>  $auth_id,
+            ); 
+            
+            $update=Update('tbl_users', $data, "WHERE id = '".$row['id']."'");
+            
+            if($row['status']==0)
+            {
+                $set['ALL_IN_ONE_VIDEO'][]=array('msg' =>$app_lang['account_deactive'],'success'=>'0');
+            }   
+            else
+            {
+                $user_id=$row['id'];
+                
+                $sql="SELECT * FROM tbl_active_log WHERE `user_id`='$user_id'";
+                $res=mysqli_query($mysqli, $sql);
+                
+                if(mysqli_num_rows($res) == 0){
+                    
+                    $data_log = array(
+                        'user_id'  =>  $user_id,
+                        'date_time'  =>  strtotime(date('d-m-Y h:i:s A'))
+                    );
+                    
+                    $qry = Insert('tbl_active_log',$data_log);
+                    
+                }
+                else{
+                    $data_log = array(
+                        'date_time'  =>  strtotime(date('d-m-Y h:i:s A'))
+                    );
+                    
+                    $update=Update('tbl_active_log', $data_log, "WHERE user_id = '$user_id'");  
+                }
+                
+                mysqli_free_result($res);
+                
+                                 
+                $set['ALL_IN_ONE_VIDEO'][]=array('user_id' => $row['id'], 'name'=>$row['name'], 'email'=>$row['email'], 'success'=>'1', 'msg' =>'', 'auth_id' => $auth_id);
+            }
+        }
+        
+    }
+    else{
+        $sql = "SELECT * FROM tbl_users WHERE `email` = '$email'"; 
+        $result = mysqli_query($mysqli, $sql);
+        $row = mysqli_fetch_assoc($result);
+        
+        if (!filter_var($get_method['email'], FILTER_VALIDATE_EMAIL)) 
+        {
+            $set['ALL_IN_ONE_VIDEO'][]=array('msg' => $app_lang['invalid_email_format'],'success'=>'0');
+        }
+        else if($row['email']!="")
+        {
+            $set['ALL_IN_ONE_VIDEO'][]=array('msg' => $app_lang['email_exist'],'success'=>'0');
+        }
+        else
+        {   
+           // echo "test";exit;
+
+            $data = array(
+                'user_type'=>'Normal',                                           
+                'name'  => addslashes(trim($get_method['name'])),                   
+                'email'  =>  addslashes(trim($get_method['email'])),
+                'password'  =>  md5(trim($get_method['password'])),
+                'phone'  =>  addslashes(trim($get_method['phone'])),
+                'register_on'  =>  strtotime(date('d-m-Y h:i:s A')), 
+                'status'  =>  '1'
+            );      
+            
+            $qry = Insert('tbl_users',$data);
+             
+            
+            $set['ALL_IN_ONE_VIDEO'][]=array('msg' => $app_lang['register_success'],'success'=>'1');
+        }
+        
+    }
+    
+    header( 'Content-Type: application/json; charset=utf-8' );
+    echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    die();
+}
+else if($get_method['method_name']=="user_login")
+{
+    
+    $email= htmlentities(trim($get_method['email']));
+    $password = htmlentities(trim($get_method['password']));
+    $auth_id = htmlentities(trim($get_method['auth_id']));
+    $user_type = htmlentities(trim($get_method['type']));
+    
+    if($user_type=='normal' OR $user_type=='Normal'){
+        
+        // simple login
+        $qry = "SELECT * FROM tbl_users WHERE email = '$email' AND (`user_type`='Normal' OR `user_type`='normal') AND `id` <> 0"; 
+        $result = mysqli_query($mysqli,$qry);
+        $num_rows = mysqli_num_rows($result);
+        
+        if($num_rows > 0){
+            $row = mysqli_fetch_assoc($result);
+            
+            if($row['status']==1){
+                if($row['password']==md5($password)){
+                    
+                    $user_id=$row['id'];
+                    
+                    $sql="SELECT * FROM tbl_active_log WHERE `user_id`='$user_id'";
+                    $res=mysqli_query($mysqli, $sql);
+                    
+                    if(mysqli_num_rows($res) == 0){
+                        // insert active log
+                        
+                        $data_log = array(
+                            'user_id'  =>  $user_id,
+                            'date_time'  =>  strtotime(date('d-m-Y h:i:s A'))
+                        );
+                        
+                        $qry = Insert('tbl_active_log',$data_log);
+                        
+                    }
+                    else{
+                        // update active log
+                        $data_log = array(
+                            'date_time'  =>  strtotime(date('d-m-Y h:i:s A'))
+                        );
+                        
+                        $update=Update('tbl_active_log', $data_log, "WHERE user_id = '$user_id'");  
+                    }
+                    
+                    mysqli_free_result($res);
+                    
+                    $set['ALL_IN_ONE_VIDEO'][]=array('user_id' => $row['id'], 'name'=>$row['name'], 'email'=>$row['email'], 'msg' => $app_lang['login_success'], 'auth_id' => '', 'success'=>'1');
+                }
+                else{
+                    // invalid password
+                    $set['ALL_IN_ONE_VIDEO'][]=array('msg' =>$app_lang['invalid_password'],'success'=>'0');
+                }
+            }
+            else{
+                // account is deactivated
+                $set['ALL_IN_ONE_VIDEO'][]=array('msg' =>$app_lang['account_deactive'],'success'=>'0');
+            }
+            
+        }
+        else{
+            // email not found
+            $set['ALL_IN_ONE_VIDEO'][]=array('msg' =>$app_lang['email_not_found'],'success'=>'0');  
+        }
+    }
+    else if($user_type=='google' OR $user_type=='Google'){
+        
+        // login with google
+        
+        $sql = "SELECT * FROM tbl_users WHERE (`email` = '$email' OR `auth_id`='$auth_id') AND (`user_type`='Google' OR `user_type`='google')";
+        
+        $res=mysqli_query($mysqli, $sql);
+        
+        if(mysqli_num_rows($res) > 0){
+            $row = mysqli_fetch_assoc($res);
+            
+            if($row['status']==0){
+                $set['ALL_IN_ONE_VIDEO'][]=array('msg' => $app_lang['account_deactive'],'success'=>'0');
+            }   
+            else
+            {
+                $user_id=$row['id'];
+                
+                $sql="SELECT * FROM tbl_active_log WHERE `user_id`='$user_id'";
+                $res=mysqli_query($mysqli, $sql);
+                
+                if(mysqli_num_rows($res) == 0){
+                    // insert active log
+                    
+                    $data_log = array(
+                        'user_id'  =>  $user_id,
+                        'date_time'  =>  strtotime(date('d-m-Y h:i:s A'))
+                    );
+                    
+                    $qry = Insert('tbl_active_log',$data_log);
+                    
+                }
+                else{
+                    // update active log
+                    $data_log = array(
+                        'date_time'  =>  strtotime(date('d-m-Y h:i:s A'))
+                    );
+                    
+                    $update=Update('tbl_active_log', $data_log, "WHERE user_id = '$user_id'");  
+                }
+                
+                mysqli_free_result($res);
+                
+                
+                $set['ALL_IN_ONE_VIDEO'][]=array('user_id' => $row['id'], 'name' => $row['name'], 'email'=>$row['email'], 'msg' => $app_lang['login_success'], 'auth_id' => $auth_id, 'success'=>'1');
+                
+                $data = array(
+                    'auth_id'  =>  $auth_id
+                );  
+                
+                $updatePlayerID=Update('tbl_users', $data, "WHERE `id` = '".$row['id']."'");
+            }
+            
+        }
+        else{
+            $set['ALL_IN_ONE_VIDEO'][]=array('msg' => $app_lang['email_not_found'],'success'=>'0');
+        }
+    }
+    else if($user_type=='facebook' OR $user_type=='Facebook'){
+        
+        // login with google
+        
+        $sql = "SELECT * FROM tbl_users WHERE (`email` = '$email' OR `auth_id`='$auth_id') AND (`user_type`='Facebook' OR `user_type`='facebook')";
+        
+        $res=mysqli_query($mysqli, $sql);
+        
+        if(mysqli_num_rows($res) > 0){
+            $row = mysqli_fetch_assoc($res);
+            
+            if($row['status']==0){
+                $set['ALL_IN_ONE_VIDEO'][]=array('msg' => $app_lang['account_deactive'],'success'=>'0');
+            }   
+            else
+            {
+                
+                $user_id=$row['id'];
+                
+                $sql="SELECT * FROM tbl_active_log WHERE `user_id`='$user_id'";
+                $res=mysqli_query($mysqli, $sql);
+                
+                if(mysqli_num_rows($res) == 0){
+                    // insert active log
+                    
+                    $data_log = array(
+                        'user_id'  =>  $user_id,
+                        'date_time'  =>  strtotime(date('d-m-Y h:i:s A'))
+                    );
+                    
+                    $qry = Insert('tbl_active_log',$data_log);
+                    
+                }
+                else{
+                    // update active log
+                    $data_log = array(
+                        'date_time'  =>  strtotime(date('d-m-Y h:i:s A'))
+                    );
+                    
+                    $update=Update('tbl_active_log', $data_log, "WHERE user_id = '$user_id'");  
+                }
+                
+                mysqli_free_result($res);
+                
+                $set['ALL_IN_ONE_VIDEO'][]=array('user_id' => $row['id'], 'name' => $row['name'], 'email'=>$row['email'], 'msg' => $app_lang['login_success'], 'auth_id' => $auth_id, 'success'=>'1');
+                
+                $data = array(
+                    'auth_id'  =>  $auth_id
+                );  
+                
+                $updatePlayerID=Update('tbl_users', $data, "WHERE `id` = '".$row['id']."'");
+            }
+            
+        }
+        else{
+            $set['ALL_IN_ONE_VIDEO'][]=array('msg' => $app_lang['email_not_found'],'success'=>'0');
+        }
+        
+    }
+    
+    header( 'Content-Type: application/json; charset=utf-8' );
+    echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    die();
+}
+else if($get_method['method_name']=="user_profile")
+{
+    
+    $qry = "SELECT * FROM tbl_users WHERE id = '".$get_method['id']."'"; 
+    $result = mysqli_query($mysqli,$qry);
+    
+    $row = mysqli_fetch_assoc($result);
+    
+    $set['ALL_IN_ONE_VIDEO'][]=array('user_id' => $row['id'],'name'=>$row['name'],'email'=>$row['email'],'phone'=>$row['phone'],'success'=>'1');
+    
+    
+    header( 'Content-Type: application/json; charset=utf-8' );
+    echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    die();
+    
+}
+else if($get_method['method_name']=="user_profile_update")
+{
+    if($get_method['password']!="")
+    {
+        $user_edit= "UPDATE tbl_users SET name='".$get_method['name']."',email='".$get_method['email']."',password='".md5($get_method['password'])."',phone='".$get_method['phone']."' WHERE id = '".$get_method['user_id']."'";     
+    }
+    else
+    {
+        $user_edit= "UPDATE tbl_users SET name='".$get_method['name']."',email='".$get_method['email']."',phone='".$get_method['phone']."' WHERE id = '".$get_method['user_id']."'";     
+    }
+    
+    $user_res = mysqli_query($mysqli,$user_edit);   
+    
+    $set['ALL_IN_ONE_VIDEO'][]=array('msg' => $app_lang['update_success'], 'success'=>'1');
+    
+    header( 'Content-Type: application/json; charset=utf-8' );
+    echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    die();
+    
+}
+else if($get_method['method_name']=="forgot_pass")
+{
+    
+    $email=trim($get_method['email']);
+    
+    $qry = "SELECT * FROM tbl_users WHERE tbl_users.`email` = '$email' AND tbl_users.`user_type`='Normal'"; 
+    $result = mysqli_query($mysqli,$qry);
+    $row = mysqli_fetch_assoc($result);
+    
+    if($result->num_rows > 0)
+    {
+        $password=generateRandomPassword(7);
+        
+        $new_password=md5($password);
+        
+        $to = $row['email'];
+        $recipient_name=$row['name'];
+        // subject
+        $subject = str_replace('###', APP_NAME, $app_lang['forgot_password_sub_lbl']);
+        
+        $message='<div style="background-color: #f9f9f9;" align="center"><br />
+        <table style="font-family: OpenSans,sans-serif; color: #666666;" border="0" width="600" cellspacing="0" cellpadding="0" align="center" bgcolor="#FFFFFF">
+        <tbody>
+        <tr>
+        <td colspan="2" bgcolor="#FFFFFF" align="center"><img src="'.$file_path.'images/'.APP_LOGO.'" alt="header" style="width:100px;height:auto"/></td>
+        </tr>
+        <tr>
+        <td width="600" valign="top" bgcolor="#FFFFFF"><br>
+        <table style="font-family:OpenSans,sans-serif; color: #666666; font-size: 10px; padding: 15px;" border="0" width="100%" cellspacing="0" cellpadding="0" align="left">
+        <tbody>
+        <tr>
+        <td valign="top"><table border="0" align="left" cellpadding="0" cellspacing="0" style="font-family:OpenSans,sans-serif; color: #666666; font-size: 10px; width:100%;">
+        <tbody>
+        <tr>
+        <td>
+        <p style="color: #262626; font-size: 24px; margin-top:0px;"><strong>'.$app_lang['dear_lbl'].' '.$row['name'].'</strong></p>
+        <p style="color:#262626; font-size:20px; line-height:32px;font-weight:500;margin-top:5px;"><br>'.$app_lang['your_password_lbl'].': <span style="font-weight:400;">'.$password.'</span></p>
+        <p style="color:#262626; font-size:17px; line-height:32px;font-weight:500;margin-bottom:30px;">'.$app_lang['thank_you_lbl'].' '.APP_NAME.'</p>
+        
+        </td>
+        </tr>
+        </tbody>
+        </table></td>
+        </tr>
+        
+        </tbody>
+        </table></td>
+        </tr>
+        <tr>
+        <td style="color: #262626; padding: 20px 0; font-size: 18px; border-top:5px solid #52bfd3;" colspan="2" align="center" bgcolor="#ffffff">'.$app_lang['email_copyright'].' '.APP_NAME.'.</td>
+        </tr>
+        </tbody>
+        </table>
+        </div>';
+        
+        send_email($to,$recipient_name,$subject,$message);
+        
+        $sql="UPDATE tbl_users SET `password`='$new_password' WHERE `id`='".$row['id']."'";
+        mysqli_query($mysqli,$sql);
+        
+        $set['ALL_IN_ONE_VIDEO'][]=array('msg' => $app_lang['password_sent_mail'],'success'=>'1');
+    }
+    else
+    {       
+        $set['ALL_IN_ONE_VIDEO'][]=array('msg' => $app_lang['email_not_found'],'success'=>'0');     
+    }
+    
+    header( 'Content-Type: application/json; charset=utf-8' );
+    echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    die();  
+}   
+else if($get_method['method_name']=="user_status")
+{
+    $user_id = $get_method['user_id'];
+    
+    $qry = "SELECT * FROM tbl_users WHERE `status`='1' AND `id` = '".$user_id."'"; 
+    $result = mysqli_query($mysqli,$qry);
+    $num_rows = mysqli_num_rows($result);
+    $row = mysqli_fetch_assoc($result);
+    
+    if($num_rows > 0)
+    {        
+        $set['ALL_IN_ONE_VIDEO'][]=array('message' => 'Enable','success'=>'1');  
+    }        
+    else
+    {
+        $set['ALL_IN_ONE_VIDEO'][]=array('message' => 'Disable','success'=>'0');
+    }
+    
+    header( 'Content-Type: application/json; charset=utf-8' );
+    echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    die();  
+}
+else if($get_method['method_name']=="video_rate")
+{
+    $ip = $get_method['device_id'];
+    $post_id = $get_method['post_id'];
+    $user_id = $get_method['user_id'];
+    $therate = $get_method['rate'];
+    
+    $query1 = mysqli_query($mysqli,"SELECT * FROM tbl_rating WHERE post_id  = '$post_id' and user_id = '$user_id'"); 
+    
+    while($data1 = mysqli_fetch_assoc($query1)){
+        $rate_db1[] = $data1;
+    }
+    if(@count($rate_db1) == 0 ){
+        
+        $qry1="INSERT INTO tbl_rating (`post_id`,`user_id`,`rate`,`ip`) VALUES ('".$post_id."','".$user_id."','".$therate."','".$ip."')"; 
+        $result1=mysqli_query($mysqli,$qry1);  
+        
+        
+        $query = mysqli_query($mysqli,"SELECT * FROM tbl_rating WHERE `post_id`  = '$post_id' ");
+        
+        while($data = mysqli_fetch_assoc($query)){
+            $rate_db[] = $data;
+            $sum_rates[] = $data['rate'];
+        }
+        
+        if(@count($rate_db)){
+            $rate_times = count($rate_db);
+            $sum_rates = array_sum($sum_rates);
+            $rate_value = $sum_rates/$rate_times;
+            $rate_bg = (($rate_value)/5)*100;
+        }else{
+            $rate_times = 0;
+            $rate_value = 0;
+            $rate_bg = 0;
+        }
+        
+        $rate_avg=round($rate_value); 
+        
+        $sql="UPDATE tbl_video SET `total_rate`=`total_rate` + 1, `rate_avg`='$rate_avg' WHERE `id`='$post_id'";
+        mysqli_query($mysqli,$sql);
+        
+        $total_rat_sql="SELECT * FROM tbl_video WHERE `id`='".$post_id."'";
+        $total_rat_res=mysqli_query($mysqli,$total_rat_sql);
+        $total_rat_row=mysqli_fetch_assoc($total_rat_res);
+        
+        
+        $set['ALL_IN_ONE_VIDEO'][]=array('total_rate' =>$total_rat_row['total_rate'],'rate_avg' =>$total_rat_row['rate_avg'],'msg' => $app_lang['rate_success'], 'success'=>'1');
+        
+    }else{
+        $set['ALL_IN_ONE_VIDEO'][]=array('msg' => $app_lang['rate_already'], 'success'=>'0');
+    }
+    
+    header( 'Content-Type: application/json; charset=utf-8' );
+    echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    die();
+    
+}
+else if($get_method['method_name']=="video_comment")
+{
+    $post_id = $get_method['post_id'];
+    $user_id = $get_method['user_id'];
+    $user_name = $get_method['user_name'];
+    $comment_text = $get_method['comment_text'];
+    
+    $data = array(
+        'post_id'  => cleanInput($get_method['post_id']),
+        'user_id'  => cleanInput($get_method['user_id']),
+        'user_name'  =>  cleanInput($get_method['user_name']),
+        'comment_text'  =>  cleanInput($get_method['comment_text']),
+        'dt_rate'  =>  strtotime(date('d-m-Y h:i:s A'))
+    );                           
+    
+    if(Insert('tbl_comments',$data)){
+        $set['ALL_IN_ONE_VIDEO'][]=array('msg' => $app_lang['comment_success'], 'success'=>'1');    
+    }
+    else{
+        $set['ALL_IN_ONE_VIDEO'][]=array('msg' => $app_lang['comment_fail'], 'success'=>'0');       
+    }
+    
+    header( 'Content-Type: application/json; charset=utf-8' );
+    echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    die();
+    
+}
+else if($get_method['method_name']=="get_app_details")
+{
+    
+    $jsonObj= array();  
+    
+    $query="SELECT * FROM tbl_settings WHERE `id`='1'";
+    $sql = mysqli_query($mysqli,$query)or die(mysqli_error($mysqli));
+    
+    while($data = mysqli_fetch_assoc($sql))
+    {
+        
+        $row['app_name'] = $data['app_name'];
+        $row['app_logo'] = $data['app_logo'];
+        $row['app_version'] = $data['app_version'];
+        $row['app_author'] = $data['app_author'];
+        $row['app_contact'] = $data['app_contact'];
+        $row['app_email'] = $data['app_email'];
+        $row['app_website'] = $data['app_website'];
+        $row['app_description'] = $data['app_description'];
+        $row['app_developed_by'] = $data['app_developed_by'];
+        
+        $row['package_name'] = $data['package_name']; 
+         
+        $row['app_privacy_policy'] = stripslashes($data['app_privacy_policy']);
+        
+        if($data['android_ad_network']=='admob'){
+            $row['publisher_id'] = $data['publisher_id'];
+        }else{
+             $row['publisher_id'] = '';
+        }
+
+        $row['interstital_ad'] = $data['interstital_ad'];
+        $row['ad_network'] = $data['android_ad_network'];
+
+        if($data['interstital_ad_type']=='facebook'){
+            $row['interstital_ad_id'] = $data['interstital_facebook_id'];
+        }else if($data['interstital_ad_type']=='admob'){
+            $row['interstital_ad_id'] = $data['interstital_ad_id'];
+        }else if($data['interstital_ad_type']=='unityds'){
+            $row['interstital_ad_id'] = $data['interstitial_unity_id']; 
+        }else if($data['interstital_ad_type']=='applovins'){
+            $row['interstital_ad_id'] = $data['interstitial_applovin_id'];  
+        }else if ($data['interstital_ad_type'] == 'wortise') {
+          $row['interstitial_ad_id'] = $data['interstitial_wortise_id'];
+        }else if($data['interstital_ad_type']=='startapp'){
+            $row['interstital_ad_id'] = ''; 
+        }
+        
+        $row['interstital_ad_click'] = $data['interstital_ad_click'];
+        
+        $row['banner_ad'] = $data['banner_ad'];
+        
+        if($data['android_ad_network']=='unityds'){
+            $row['unity_game_id'] = $data['unity_game_id'];
+            $row['startapp_app_id'] ='';
+            $row['wortise_app_id']='';
+        }else if($data['android_ad_network']=='startapp'){
+            $row['unity_game_id'] ='';
+            $row['startapp_app_id'] = $data['start_ads_id'];
+            $row['wortise_app_id']='';
+        }else if ($data['android_ad_network'] == 'wortise') {
+          $row['wortise_app_id'] = $data['wortise_app_id'];
+          $row['unity_game_id'] = '';
+          $row['startapp_app_id'] = '';
+        }else{
+            $row['unity_game_id'] ='';
+            $row['startapp_app_id'] ='';
+            $row['wortise_app_id']='';
+        }
+        
+        if($data['banner_ad_type']=='facebook'){
+            $row['banner_ad_id'] = $data['banner_facebook_id'];
+        }else if($data['banner_ad_type']=='admob'){
+            $row['banner_ad_id'] = $data['banner_ad_id'];
+        }else if($data['banner_ad_type']=='unityds'){
+            $row['banner_ad_id'] = $data['banner_unity_id'];    
+        }else if($data['banner_ad_type']=='applovins'){
+            $row['banner_ad_id'] = $data['banner_applovin_id']; 
+        }else if ($data['banner_ad_type'] == 'wortise') {
+          $row['banner_ad_id'] = $data['banner_wortise_id'];
+        }else if($data['banner_ad_type']=='startapp'){
+            $row['banner_ad_id'] = '';  
+        }
+        
+        if($data['android_ad_network']=='unityds'){
+            $row['native_ad'] = false;
+        }else{
+            $row['native_ad'] = $data['native_ad'];
+        }
+        
+        if($data['native_ad_type']=='facebook'){
+            $row['native_ad_id'] = $data['native_facebook_id'];
+        }else if($data['native_ad_type']=='admob'){
+            $row['native_ad_id'] = $data['native_ad_id'];
+        }else if($data['native_ad_type']=='applovins'){
+            $row['native_ad_id'] = $data['native_applovin_id'];
+        }else if($data['native_ad_type']=='wortise'){
+          $row['native_ad_id'] = $data['native_wortise_id'];
+        }
+        else{
+            $row['native_ad_id'] = '';
+        }
+        
+        if($data['android_ad_network']=='unityds'){
+            $row['native_position'] = 1;
+        }else{
+            $row['native_position'] = $data['native_position'];
+        }
+                 
+        
+        $row['app_update_status'] = $data['app_update_status'];
+        $row['app_new_version'] = $data['app_new_version'];
+        $row['app_update_desc'] = stripslashes($data['app_update_desc']);
+        $row['app_redirect_url'] = $data['app_redirect_url'];
+        $row['cancel_update_status'] = $data['cancel_update_status'];
+        
+        $row['privacy_policy_link'] = $file_path.'privacy_policy.php';
+        
+        
+        array_push($jsonObj,$row);
+        
+    }
+    
+    $set['ALL_IN_ONE_VIDEO'] = $jsonObj;
+    
+    header( 'Content-Type: application/json; charset=utf-8' );
+    echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    die();  
+}
+else
+{
+    $get_method = checkSignSalt($_POST['data']);
+}
